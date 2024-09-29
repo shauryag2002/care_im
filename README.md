@@ -31,6 +31,54 @@ plugs = [hello_plug]
 ...
 ```
 
+## Local Development
+
+To develop the plug in local environment along with care, follow the steps below:
+
+1. Go to the care root directory and clone the plugin repository:
+
+```bash
+cd care
+git clone git@github.com:ohcnetwork/care_hello.git
+```
+
+2. Add the plugin config in plug_config.py
+
+```python
+...
+
+hello_plugin = Plug(
+    name="hello", # name of the django app in the plugin
+    package_name="/app/care_hello", # this has to be /app/ + plugin folder name
+    version="", # keep it empty for local development
+    configs={}, # plugin configurations if any
+)
+plugs = [hello_plug]
+
+...
+```
+
+3. Tweak the code in plugs/manager.py, install the plugin in editable mode
+
+```python
+...
+
+subprocess.check_call(
+    [sys.executable, "-m", "pip", "install", "-e", *packages] # add -e flag to install in editable mode
+)
+
+...
+```
+
+4. Rebuild the docker image and run the server
+
+```bash
+make re-build
+make up
+```
+
+[!IMPORTANT]: Do not push these changes in a PR. These changes are only for local development.
+
 ## Configuration
 
 The following configurations variables are available for Care Hello:
