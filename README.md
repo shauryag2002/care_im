@@ -3,33 +3,7 @@
 [![Release Status](https://img.shields.io/pypi/v/care_hello.svg)](https://pypi.python.org/pypi/care_hello)
 [![Build Status](https://github.com/ohcnetwork/care_hello/actions/workflows/build.yaml/badge.svg)](https://github.com/ohcnetwork/care_hello/actions/workflows/build.yaml)
 
-Care Hello is a plugin for care to add voice auto fill support using external services like OpenAI whisper and Google Speech to Text.
-
-## Features
-
-- Voice auto fill support for care
-- Support for OpenAI whisper and Google Speech to Text
-
-## Installation
-
-https://care-be-docs.ohc.network/pluggable-apps/configuration.html
-
-https://github.com/ohcnetwork/care/blob/develop/plug_config.py
-
-To install care hello, you can add the plugin config in [care/plug_config.py](https://github.com/ohcnetwork/care/blob/develop/plug_config.py) as follows:
-
-```python
-...
-
-hello_plug = Plug(
-    name="hello",
-    package_name="git+https://github.com/ohcnetwork/care_hello.git",
-    version="@master",
-    configs={},
-)
-plugs = [hello_plug]
-...
-```
+Care Hello is a sample plugin, a plugin boilerplate to begin developing the plugin for care.
 
 ## Local Development
 
@@ -77,7 +51,27 @@ make re-build
 make up
 ```
 
-[!IMPORTANT]: Do not push these changes in a PR. These changes are only for local development.
+> [!IMPORTANT]
+> Do not push these changes in a PR. These changes are only for local development.
+
+## Production Setup
+
+To install care hello, you can add the plugin config in [care/plug_config.py](https://github.com/ohcnetwork/care/blob/develop/plug_config.py) as follows:
+
+```python
+...
+
+hello_plug = Plug(
+    name="hello",
+    package_name="git+https://github.com/ohcnetwork/care_hello.git",
+    version="@master",
+    configs={},
+)
+plugs = [hello_plug]
+...
+```
+
+[Extended Docs on Plug Installation](https://care-be-docs.ohc.network/pluggable-apps/configuration.html)
 
 ## Configuration
 
