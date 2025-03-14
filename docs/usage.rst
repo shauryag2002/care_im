@@ -4,4 +4,4 @@ Usage
 
 To use Care Hello in a project::
 
-    import hello
+    import care_im

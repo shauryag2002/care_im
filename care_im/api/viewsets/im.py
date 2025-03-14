@@ -7,8 +7,8 @@ from rest_framework.mixins import (
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.viewsets import GenericViewSet
 
-from hello.api.serializers.hello import HelloSerializer
-from hello.models.hello import Hello
+from care_im.api.serializers.im import HelloSerializer
+from care_im.models.im import Hello
 
 
 class HelloViewset(

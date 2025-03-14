@@ -22,7 +22,7 @@ git clone git@github.com:ohcnetwork/care_hello.git
 ...
 
 hello_plugin = Plug(
-    name="hello", # name of the django app in the plugin
+    name="care_im", # name of the django app in the plugin
     package_name="/app/care_hello", # this has to be /app/ + plugin folder name
     version="", # keep it empty for local development
     configs={}, # plugin configurations if any
@@ -56,13 +56,13 @@ make up
 
 ## Production Setup
 
-To install care hello, you can add the plugin config in [care/plug_config.py](https://github.com/ohcnetwork/care/blob/develop/plug_config.py) as follows:
+To install care care_im, you can add the plugin config in [care/plug_config.py](https://github.com/ohcnetwork/care/blob/develop/plug_config.py) as follows:
 
 ```python
 ...
 
 hello_plug = Plug(
-    name="hello",
+    name="care_im",
     package_name="git+https://github.com/ohcnetwork/care_hello.git",
     version="@master",
     configs={},
