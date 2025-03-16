@@ -1,9 +1,14 @@
 # Care Hello
 
-[![Release Status](https://img.shields.io/pypi/v/care_hello.svg)](https://pypi.python.org/pypi/care_hello)
-[![Build Status](https://github.com/ohcnetwork/care_hello/actions/workflows/build.yaml/badge.svg)](https://github.com/ohcnetwork/care_hello/actions/workflows/build.yaml)
+Care IM (Instant Messaging) is a WhatsApp integration plugin for Care, providing a seamless messaging interface through WhatsApp Business API. This plugin enables healthcare facilities to communicate with patients via WhatsApp, supporting automated notifications and interactive messaging.
 
-Care Hello is a sample plugin, a plugin boilerplate to begin developing the plugin for care.
+Key Features:
+- WhatsApp Business API integration
+- Automated patient notifications
+- Two-way messaging support
+- Secure message handling
+- Configurable message templates
+
 
 ## Local Development
 
@@ -13,7 +18,7 @@ To develop the plug in local environment along with care, follow the steps below
 
 ```bash
 cd care
-git clone git@github.com:ohcnetwork/care_hello.git
+git clone git@github.com:shauryag2002/care_im.git
 ```
 
 2. Add the plugin config in plug_config.py
@@ -21,13 +26,13 @@ git clone git@github.com:ohcnetwork/care_hello.git
 ```python
 ...
 
-hello_plugin = Plug(
+im_plugin = Plug(
     name="care_im", # name of the django app in the plugin
-    package_name="/app/care_hello", # this has to be /app/ + plugin folder name
+    package_name="/app/care_im", # this has to be /app/ + plugin folder name
     version="", # keep it empty for local development
     configs={}, # plugin configurations if any
 )
-plugs = [hello_plug]
+plugs = [im_plugin]
 
 ...
 ```
@@ -61,13 +66,13 @@ To install care care_im, you can add the plugin config in [care/plug_config.py](
 ```python
 ...
 
-hello_plug = Plug(
+im_plug = Plug(
     name="care_im",
-    package_name="git+https://github.com/ohcnetwork/care_hello.git",
+    package_name="git+https://github.com/ohcnetwork/care_im.git",
     version="@master",
     configs={},
 )
-plugs = [hello_plug]
+plugs = [im_plug]
 ...
 ```
 
