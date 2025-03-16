@@ -1,4 +1,4 @@
-# Care Hello
+# Care Instant Messaging wrapper (care_im)
 
 Care IM (Instant Messaging) is a WhatsApp integration plugin for Care, providing a seamless messaging interface through WhatsApp Business API. This plugin enables healthcare facilities to communicate with patients via WhatsApp, supporting automated notifications and interactive messaging.
 
