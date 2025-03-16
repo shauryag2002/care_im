@@ -7,3 +7,5 @@ PLUGIN_NAME = "care_im"
 class HelloConfig(AppConfig):
     name = PLUGIN_NAME
     verbose_name = _("care_im")
+    def ready(self):
+        import care_im.signals

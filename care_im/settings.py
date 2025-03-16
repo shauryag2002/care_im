@@ -98,13 +98,20 @@ class PluginSettings:  # pragma: no cover
 
 
 REQUIRED_SETTINGS = {
-    "HELLO_DUMMY_ENV",
+    "WHATSAPP_ACCESS_TOKEN",
+    "WHATSAPP_PHONE_NUMBER_ID",
+    "WHATSAPP_VERIFY_TOKEN",
+    "WHATSAPP_API_VERSION",
+    "WHATSAPP_BUSINESS_ACCOUNT_ID",
 }
 
 DEFAULTS = {
-    "HELLO_DUMMY_ENV": "test",
+    "WHATSAPP_ACCESS_TOKEN": "",
+    "WHATSAPP_PHONE_NUMBER_ID": "",
+    "WHATSAPP_VERIFY_TOKEN": "123456",
+    "WHATSAPP_API_VERSION": "v22.0",
+    "WHATSAPP_BUSINESS_ACCOUNT_ID": "",
 }
-
 plugin_settings = PluginSettings(
     PLUGIN_NAME, defaults=DEFAULTS, required_settings=REQUIRED_SETTINGS
 )

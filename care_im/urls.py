@@ -1,9 +1,9 @@
 from rest_framework.routers import DefaultRouter
 
-from care_im.api.viewsets.im import HelloViewset
+from care_im.api.viewsets.im import InstantMessageViewSet
 
 router = DefaultRouter()
 
-router.register("care_im", HelloViewset, basename="hello__hello")
+router.register("", InstantMessageViewSet, basename="instant-messaging")
 
 urlpatterns = router.urls
