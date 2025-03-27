@@ -1,0 +1,1 @@
+"""Message templates for the care_im package."""

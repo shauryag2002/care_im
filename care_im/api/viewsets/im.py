@@ -1,20 +1,26 @@
+"""Instant messaging API endpoints."""
+
+import logging
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from drf_spectacular.utils import extend_schema
+from django.http import HttpResponse
 
 from care_im.api.serializers.im import HelloSerializer
 from care_im.models.im import Hello
-from care_im.utils.whatsapp_client import WhatsAppClient
-from django.http import HttpResponse
-import logging
+from care_im.messaging.client import WhatsAppClient
+
 logger = logging.getLogger(__name__)
 
 
-class InstantMessageViewSet(
-    viewsets.ViewSet
-):
+class InstantMessageViewSet(viewsets.ViewSet):
+    """
+    API endpoints for WhatsApp instant messaging.
+    
+    Handles webhook verification and processing of incoming messages.
+    """
     queryset = Hello.objects.all().order_by("-created_date")
     serializer_class = HelloSerializer
     lookup_field = "external_id"
@@ -26,7 +32,12 @@ class InstantMessageViewSet(
     )
     @action(detail=False, methods=["GET", "POST"])
     def webhook(self, request):
-        """Handle webhook verification and incoming messages"""
+        """
+        Handle webhook verification and incoming messages.
+        
+        GET: Verify webhook with Meta Platform
+        POST: Process incoming WhatsApp messages
+        """
         client = WhatsAppClient()
 
         # Handle webhook verification
