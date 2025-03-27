@@ -16,20 +16,23 @@ logger = logging.getLogger(__name__)
 @shared_task
 def send_otp_message_task(phone_number, otp):
     try:
-        whatsapp_client = WhatsAppClient()
-        whatsapp_client.send_message(
-            phone_number,
-            f"Kerala Care Login, OTP {otp}. Please do not share this Confidential Login Token with anyone else",
+        # whatsapp_client = WhatsAppClient()
+        # whatsapp_client.send_message(
+        #     phone_number,
+        #     f"Kerala Care Login, OTP {otp}. Please do not share this Confidential Login Token with anyone else",
+        # )Scheduling OTP message
+        WhatsAppSender().send_template(
+            to_number=phone_number,
+            template_name="care_otp",
+            params={
+                "body": [
+                    {"type": "text", "text": f"{otp}"}
+                ],
+                "button": [
+                    {"type": "text", "text": f"{otp}", "sub_type": "url", "index": 0}
+                ]
+            }
         )
-        # WhatsAppSender().send_template(
-        #     to_number=phone_number,
-        #     template_name="care_otp",
-        #     params={
-        #         "body": [
-        #             {"type": "text", "text": f"{otp}"}
-        #         ]
-        #     }
-        # )
     except Exception as e:
         logger.error(f"Failed to send OTP: {str(e)}")
 
@@ -41,9 +44,8 @@ def send_questionnaire_response_task(phone_number):
     if cache.add(lock_id, "locked", timeout=10):
         try:
             whatsapp_client = WhatsAppMessageHandler(phone_number)
-            whatsapp_client.send_whatsapp_message(
-                message="medications",
-                to_number=phone_number,
+            whatsapp_client.process_message(
+                message_text="medications",
             )
             # medications_response=whatsapp_client._get_current_medications()
             # whatsapp_sender = WhatsAppSender()
@@ -68,9 +70,8 @@ def send_questionnaire_response_task(phone_number):
 def send_procedures_task(phone_number):
     try:
         whatsapp_client = WhatsAppMessageHandler(phone_number)
-        whatsapp_client.send_whatsapp_message(
-            message="procedures",
-            to_number=phone_number,
+        whatsapp_client.process_message(
+            message_text="procedures",
         )
         # procedure_response=whatsapp_client._get_procedures()
         # whatsapp_sender = WhatsAppSender()
@@ -108,9 +109,8 @@ def send_patient_registration_task(phone_number, name):
 def send_token_booking_task(phone_number):
     try:
         whatsapp_client = WhatsAppMessageHandler(phone_number)
-        whatsapp_client.send_whatsapp_message(
-            message="token",
-            to_number=phone_number,
+        whatsapp_client.process_message(
+            message_text="token",
         )
         # token_response=whatsapp_client._get_token_booking()
         # whatsapp_sender = WhatsAppSender()

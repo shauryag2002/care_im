@@ -4,6 +4,7 @@ import logging
 import requests
 from datetime import datetime
 from care_im.settings import settings
+from care_im.utils.send_message_templates import WhatsAppSender
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +15,7 @@ class WhatsAppClient:
         self.webhook_verify_token = settings.WHATSAPP_VERIFY_TOKEN
         self.api_version = settings.WHATSAPP_API_VERSION
         self.base_url = f'https://graph.facebook.com/{self.api_version}'
+        self.whatsapp_template_sender= WhatsAppSender()
 
         if not self.access_token or not self.phone_number_id:
             raise ValueError("WhatsApp configuration is incomplete. Check settings.")
@@ -65,14 +67,18 @@ class WhatsAppClient:
     def handle_incoming_message(self, message: dict) -> None:
         """Handle incoming messages based on content"""
         try:
-            from_number = message['from']
-            message_body = message['text']['body']
+            if 'text' in message:
+                from_number = message['from']
+                message_body = message['text']['body']
+            elif 'button' in message:
+                from_number = message['from']
+                message_body = message['button']['payload']
+
             from .message_handler import WhatsAppMessageHandler
 
             handler = WhatsAppMessageHandler(from_number)
-            response = handler.process_message(message_body)
-
-            self.send_message(from_number, response)
+            handler.process_message(message_body)
+            return "Message processed successfully"
         except Exception as e:
             logger.error(f"Error handling message: {str(e)}")
             self.send_message(

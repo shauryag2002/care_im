@@ -1,4 +1,5 @@
 from django.db.models import Q
+from care_im.utils.send_message_templates import WhatsAppSender
 from care.facility.models import Facility
 from care.users.models import User
 from care.emr.models import Patient
@@ -19,6 +20,7 @@ class WhatsAppMessageHandler:
         self._identify_user()
         self.templates = MessageTemplates()
         self.whatsapp_client = WhatsAppClient()
+        self.whatsapp_template_sender = WhatsAppSender()
 
     def _identify_user(self):
         """Identify if the sender is a patient or staff member"""
@@ -92,10 +94,20 @@ class WhatsAppMessageHandler:
             return self._handle_unregistered_user()
 
         if message_text == 'help':
-            return self.templates.help_message(
-                # Show patient menu if we found a patient record
-                is_patient=bool(self.patient or (self.user and not self.user.is_staff))
-            )
+            # return self.templates.help_message(
+            #     # Show patient menu if we found a patient record
+            #     is_patient=bool(self.patient or (self.user and not self.user.is_staff))
+            # )
+            if self.patient:
+                return self.whatsapp_template_sender.send_template(
+                    to_number=self.from_number,
+                    template_name="care_help_patient"
+                )
+            else:
+                return self.whatsapp_template_sender.send_template(
+                    to_number=self.from_number,
+                    template_name="care_help_staff"
+                )
 
         # Handle patient requests if we found a patient record or non-staff user
         if self.patient or (self.user and not self.user.is_staff):
@@ -149,6 +161,7 @@ class WhatsAppMessageHandler:
         if 'records' in message_text:
             return self._get_patient_records()
         elif 'medications' in message_text:
+            logger.info(f"Getting medy for patient: {self.patient}")
             return self._get_current_medications()
         elif 'procedures' in message_text:
             return self._get_procedures()
@@ -194,8 +207,25 @@ class WhatsAppMessageHandler:
             token_booking_info = self._retrieve_token_booking_info(self.patient)
 
             if not token_booking_info:
+                self.whatsapp_template_sender.send_template(
+                    to_number=self.from_number,
+                    template_name="care_token",
+                    params={
+                        "body":[
+                            {"type": "text", "text":"🚫 No token booking details found."}
+                        ]
+                    }
+                )
                 return "No token booking details available at this time."
-
+            self.whatsapp_template_sender.send_template(
+                to_number=self.from_number,
+                template_name="care_token",
+                params={
+                    "body":[
+                        {"type": "text", "text":f"📅 Appointment on {token_booking_info.get('slot_date')} at {token_booking_info.get('slot_time')} | Status: {token_booking_info.get('status')} | Booked on: {token_booking_info.get('booked_on')} | Reason: {token_booking_info.get('reason')}"}
+                    ]
+                }
+            )
             return self.templates.token_booking_info(token_booking_info.get('booked_on'), token_booking_info.get('status'), token_booking_info.get('reason'), token_booking_info.get('slot_date'), token_booking_info.get('slot_time'))
         except Exception as e:
             logger.error(f"Error retrieving token booking details: {str(e)}")
@@ -242,58 +272,200 @@ class WhatsAppMessageHandler:
             last_visit_date = self.patient.modified_date
             formatted_date = last_visit_date.strftime("%d %B, %Y") if last_visit_date else 'Not Available'
 
-            return self.templates.patient_record({
-                'id': self.patient.id,
-                'name': self.patient.name,
-                'age': self.patient.get_age(),
-                'gender': self.patient.gender,
-                'blood_group': self.patient.blood_group or 'Not Available',
-                'last_visit': formatted_date
-            })
+            # self.whatsapp_template_sender.send_template(
+            #     self.from_number,
+            #     "care_patient_record",
+            #     params={
+            #         "body":[
+            #             {"type": "text", "text": self.patient.id},
+            #             {"type": "text", "text": self.patient.name},  # Keep name as text "text", "text": self.patient.name},
+            #             {"type": "text", "text": self.patient.get_age()},
+            #             {"type": "text", "text": formatted_date},  # Keep date as text "text": formatted_date},
+            #             {"type": "text", "text": f"Gender: {self.patient.gender}, Blood Group: {self.patient.blood_group or 'Not Available'}"}  # Keep combined info as text "text", "text": f"Gender: {self.patient.gender}, Blood Group: {self.patient.blood_group or 'Not Available'}"
+            #         ]
+            #     }
+            # )
+            self.whatsapp_template_sender.send_template(
+                self.from_number,
+                "care_patient_record",
+                params={
+                    "body":[
+                        {"type": "text", "text": self.patient.id},
+                        {"type": "text", "text": self.patient.name},  # Keep name as text "text", "text": self.patient.name},
+                        {"type": "text", "text": self.patient.get_age()},
+                        {"type": "text", "text": formatted_date},  # Keep date as text "text": formatted_date},
+                        {"type": "text", "text": f"Gender: {self.patient.gender}, Blood Group: {self.patient.blood_group or 'Not Available'}"}  # Keep combined info as text "text", "text": f"Gender: {self.patient.gender}, Blood Group: {self.patient.blood_group or 'Not Available'}"
+                    ]
+                }
+            )
         except Exception as e:
             logger.error(f"Error getting patient records: {str(e)}")
             return "Sorry, I couldn't retrieve your records. Please try again later."
+
+    # def _get_current_medications(self) -> str:
+    #     """Get active medications for the patient"""
+    #     try:
+    #         logger.info(f"self.patient: {self.patient}")
+    #         if not self.patient:
+    #             return "No patient records found. Please visit a facility to register."
+
+    #         # Get active medication requests
+    #         active_medications = MedicationRequest.objects.filter(
+    #             patient=self.patient,
+    #             status=MedicationRequestStatus.active.value
+    #         ).select_related('encounter', 'created_by', 'requester')
+
+    #         if not active_medications:
+    #             self.whatsapp_template_sender.send_template(
+    #             to_number=self.from_number,
+    #             template_name="care_medications",
+    #             params={
+    #                 "body":[
+    #                     {"type": "text", "text":"📋 You don't have any active medications at this time.\n\nPlease consult your doctor if you need any prescriptions."}
+    #                 ]
+    #             }
+    #         )
+    #             return "📋 You don't have any active medications at this time.\n\nPlease consult your doctor if you need any prescriptions."
+
+    #         # response = "💊 *Your Current Medications*\n\n"
+    #         response=""
+
+    #         for med in active_medications:
+    #             # Medication name and category
+    #             med_name = med.medication.get('display', 'Unknown Medication')
+    #             response += f"*{med_name}*\n"
+    #             if med.category:
+    #                 response += f"Category: {med.category}\n"
+
+    #             # Priority and status
+    #             if med.priority:
+    #                 response += f"Priority: {med.priority}\n"
+    #             if med.status_reason:
+    #                 response += f"Status: {med.status} ({med.status_reason})\n"
+
+    #             # Dosage information
+    #             if med.dosage_instruction:
+    #                 response += "📝 *Dosage Instructions:*\n"
+    #                 for instruction in med.dosage_instruction:
+    #                     # Timing/Frequency
+    #                     timing = instruction.get('timing', {})
+    #                     timing_code = timing.get('code', {})
+    #                     if timing_code.get('display'):
+    #                         response += f"• Frequency: {timing_code['display']}\n"
+
+    #                     # Dose quantity
+    #                     dose_rate = instruction.get('dose_and_rate', {})
+    #                     if dose_rate:
+    #                         dose_qty = dose_rate.get('dose_quantity', {})
+    #                         if dose_qty:
+    #                             value = dose_qty.get('value')
+    #                             unit = dose_qty.get('unit', {}).get('display')
+    #                             if value and unit:
+    #                                 response += f"• Dose: {value} {unit}\n"
+
+    #                     # Duration if specified
+    #                     if timing.get('repeat', {}).get('bounds_duration'):
+    #                         duration = timing['repeat']['bounds_duration']
+    #                         value = duration.get('value')
+    #                         unit = duration.get('unit')
+    #                         if value and unit:
+    #                             response += f"• Duration: {value} {unit}\n"
+
+    #                     # Route and method
+    #                     if instruction.get('route', {}).get('display'):
+    #                         response += f"• Route: {instruction['route']['display']}\n"
+    #                     if instruction.get('method', {}).get('display'):
+    #                         response += f"• Method: {instruction['method']['display']}\n"
+
+    #                     # Additional instructions
+    #                     if instruction.get('additional_instruction'):
+    #                         for instr in instruction['additional_instruction']:
+    #                             if instr.get('display'):
+    #                                 response += f"• Note: {instr['display']}\n"
+
+    #                     # As needed flag
+    #                     if instruction.get('as_needed_boolean'):
+    #                         response += "• Take as needed\n"
+
+    #             # Method of administration
+    #             if med.method:
+    #                 response += f"Method: {med.method.get('text', 'Not specified')}\n"
+
+    #             # Prescription details
+    #             response += "\n📋 *Prescription Details:*\n"
+    #             if med.authored_on:
+    #                 response += f"• Prescribed on: {med.authored_on.strftime('%d %B, %Y')}\n"
+    #             if med.requester:
+    #                 response += f"• Requesting Doctor: Dr. {med.requester.get_full_name()}\n"
+    #             if med.created_by:
+    #                 response += f"• Prescribed by: Dr. {med.created_by.get_full_name()}\n"
+
+    #             # Notes if any
+    #             if med.note:
+    #                 response += f"\n📌 *Notes:* {med.note}\n"
+
+    #             # response += "\n" + "-"*30 + "\n\n"
+
+    #         # response += ("ℹ️ *Reminder:*\n"
+    #         #             "• Take medicines as prescribed\n"
+    #         #             "• Don't skip doses\n"
+    #         #             "• Complete full course\n"
+    #         #             "• Contact doctor for any side effects\n\n"
+    #         #             "Type 'help' to see other available commands.")
+    #         logger.info(f"Sending medications response: {response}")
+    #         self.whatsapp_template_sender.send_template(
+    #             self.from_number,
+    #             "care_medications",
+    #             params={
+    #                 "body":[
+    #                     {"type": "text", "text": response.replace("\n", "- ")},  # Escape newlines for WhatsApp
+    #                 ]
+    #             }
+    #         )
+    #         # self.send_whatsapp_message(
+    #         #     to_number=self.from_number,
+    #         #     message=response  # Escape newlines for WhatsApp
+    #         # )
+    #         return response  # return response
+
+    #     except Exception as e:
+    #         logger.error(f"Error getting medications: {str(e)}")
+    #         return "Sorry, I couldn't retrieve your medications. Please try again later or contact support."
 
     def _get_current_medications(self) -> str:
         """Get active medications for the patient"""
         try:
             logger.info(f"self.patient: {self.patient}")
-            if not self.patient:
-                return "No patient records found. Please visit a facility to register."
+            if not self.patient: return "No patient records found. Please visit a facility to register."
 
             # Get active medication requests
-            active_medications = MedicationRequest.objects.filter(
-                patient=self.patient,
-                status=MedicationRequestStatus.active.value
-            ).select_related('encounter', 'created_by', 'requester')
+            active_medications = MedicationRequest.objects.filter(patient=self.patient, status=MedicationRequestStatus.active.value).select_related('encounter', 'created_by', 'requester')
 
             if not active_medications:
-                return "📋 You don't have any active medications at this time.\n\nPlease consult your doctor if you need any prescriptions."
+                single_line_message = "📋 You don't have any active medications at this time. Please consult your doctor if you need any prescriptions."
+                self.whatsapp_template_sender.send_template(to_number=self.from_number, template_name="care_medications", params={"body":[{"type": "text", "text": single_line_message}]})
+                return single_line_message
 
-            response = "💊 *Your Current Medications*\n\n"
+            response_parts = []
 
             for med in active_medications:
                 # Medication name and category
                 med_name = med.medication.get('display', 'Unknown Medication')
-                response += f"*{med_name}*\n"
-                if med.category:
-                    response += f"Category: {med.category}\n"
+                response_parts.append(f"*{med_name}*")
+                if med.category: response_parts.append(f"Category: {med.category}")
 
                 # Priority and status
-                if med.priority:
-                    response += f"Priority: {med.priority}\n"
-                if med.status_reason:
-                    response += f"Status: {med.status} ({med.status_reason})\n"
+                if med.priority: response_parts.append(f"Priority: {med.priority}")
+                if med.status_reason: response_parts.append(f"Status: {med.status} ({med.status_reason})")
 
                 # Dosage information
                 if med.dosage_instruction:
-                    response += "📝 *Dosage Instructions:*\n"
+                    response_parts.append("📝 *Dosage Instructions:*")
                     for instruction in med.dosage_instruction:
                         # Timing/Frequency
                         timing = instruction.get('timing', {})
                         timing_code = timing.get('code', {})
-                        if timing_code.get('display'):
-                            response += f"• Frequency: {timing_code['display']}\n"
+                        if timing_code.get('display'): response_parts.append(f"• Frequency: {timing_code['display']}")
 
                         # Dose quantity
                         dose_rate = instruction.get('dose_and_rate', {})
@@ -302,64 +474,50 @@ class WhatsAppMessageHandler:
                             if dose_qty:
                                 value = dose_qty.get('value')
                                 unit = dose_qty.get('unit', {}).get('display')
-                                if value and unit:
-                                    response += f"• Dose: {value} {unit}\n"
+                                if value and unit: response_parts.append(f"• Dose: {value} {unit}")
 
                         # Duration if specified
                         if timing.get('repeat', {}).get('bounds_duration'):
                             duration = timing['repeat']['bounds_duration']
                             value = duration.get('value')
                             unit = duration.get('unit')
-                            if value and unit:
-                                response += f"• Duration: {value} {unit}\n"
+                            if value and unit: response_parts.append(f"• Duration: {value} {unit}")
 
                         # Route and method
-                        if instruction.get('route', {}).get('display'):
-                            response += f"• Route: {instruction['route']['display']}\n"
-                        if instruction.get('method', {}).get('display'):
-                            response += f"• Method: {instruction['method']['display']}\n"
+                        if instruction.get('route', {}).get('display'): response_parts.append(f"• Route: {instruction['route']['display']}")
+                        if instruction.get('method', {}).get('display'): response_parts.append(f"• Method: {instruction['method']['display']}")
 
                         # Additional instructions
                         if instruction.get('additional_instruction'):
                             for instr in instruction['additional_instruction']:
-                                if instr.get('display'):
-                                    response += f"• Note: {instr['display']}\n"
+                                if instr.get('display'): response_parts.append(f"• Note: {instr['display']}")
 
                         # As needed flag
-                        if instruction.get('as_needed_boolean'):
-                            response += "• Take as needed\n"
+                        if instruction.get('as_needed_boolean'): response_parts.append("• Take as needed")
 
                 # Method of administration
-                if med.method:
-                    response += f"Method: {med.method.get('text', 'Not specified')}\n"
+                if med.method: response_parts.append(f"Method: {med.method.get('text', 'Not specified')}")
 
                 # Prescription details
-                response += "\n📋 *Prescription Details:*\n"
-                if med.authored_on:
-                    response += f"• Prescribed on: {med.authored_on.strftime('%d %B, %Y')}\n"
-                if med.requester:
-                    response += f"• Requesting Doctor: Dr. {med.requester.get_full_name()}\n"
-                if med.created_by:
-                    response += f"• Prescribed by: Dr. {med.created_by.get_full_name()}\n"
+                response_parts.append("📋 *Prescription Details:*")
+                if med.authored_on: response_parts.append(f"• Prescribed on: {med.authored_on.strftime('%d %B, %Y')}")
+                if med.requester: response_parts.append(f"• Requesting Doctor: Dr. {med.requester.get_full_name()}")
+                if med.created_by: response_parts.append(f"• Prescribed by: Dr. {med.created_by.get_full_name()}")
 
                 # Notes if any
-                if med.note:
-                    response += f"\n📌 *Notes:* {med.note}\n"
+                if med.note: response_parts.append(f"📌 *Notes:* {med.note}")
 
-                response += "\n" + "-"*30 + "\n\n"
+            # Join all parts with a separator
+            single_line_response = " | ".join(response_parts)
 
-            response += ("ℹ️ *Reminder:*\n"
-                        "• Take medicines as prescribed\n"
-                        "• Don't skip doses\n"
-                        "• Complete full course\n"
-                        "• Contact doctor for any side effects\n\n"
-                        "Type 'help' to see other available commands.")
-
-            return response
+            logger.info(f"Sending medications response: {single_line_response}")
+            self.whatsapp_template_sender.send_template(self.from_number, "care_medications", params={"body":[{"type": "text", "text": single_line_response}]})
+            return single_line_response
 
         except Exception as e:
             logger.error(f"Error getting medications: {str(e)}")
             return "Sorry, I couldn't retrieve your medications. Please try again later or contact support."
+
 
     def _get_procedures(self,is_template=False) -> str:
         """Get recent and upcoming procedures for the patient"""
@@ -394,13 +552,22 @@ class WhatsAppMessageHandler:
                 # ).order_by('admission_date')
 
                 if not upcoming_encounters:
+                    self.whatsapp_template_sender.send_template(
+                        to_number=self.from_number,
+                        template_name="care_procedures",
+                        params={
+                            "body":[
+                                {"type": "text", "text":"🚫 No recent or upcoming procedures found."}
+                            ]
+                        }
+                    )
                     return "No recent or upcoming procedures found."
 
                 response = ""
-                if not is_template:
-                    response += "📋 *Your Procedures:*\n\n"
+                # if not is_template:
+                #     response += "📋 *Your Procedures:*\n\n"
 
-                response += "*Upcoming Procedures:*\n"
+                # response += "*Upcoming Procedures:*\n"
 
                 for encounter in upcoming_encounters:
                     date = encounter.created_date.strftime("%d %b %Y")
@@ -458,8 +625,16 @@ class WhatsAppMessageHandler:
                     if encounter.status:
                         response += f"   - Reason: {encounter.status}\n"
                     response += "\n"
-
-            return response
+            self.whatsapp_template_sender.send_template(
+                to_number=self.from_number,
+                template_name="care_procedures",
+                params={
+                    "body":[
+                        {"type": "text", "text": response.replace("\n", "- ")},  # Escape newlines for WhatsApp
+                    ]
+                }
+            )
+            # return response
         except Exception as e:
             logger.error(f"Error getting procedures: {str(e)}")
             return f"Sorry, I couldn't retrieve your procedures. Please try again later."
@@ -477,6 +652,10 @@ class WhatsAppMessageHandler:
 
             # If no facilities found
             if not user_facilities.exists():
+                self.send_whatsapp_message(
+                    to_number=self.from_number,
+                    message="You are not associated with any facilities."
+                )
                 return "You are not associated with any facilities."
 
             # If no facility_id specified, show list of user's facilities
@@ -488,6 +667,10 @@ class WhatsAppMessageHandler:
                 response += "\n📝 *To view schedule for a specific facility:*\n"
                 response += "Type `/s <facility_number>`\n"
                 response += "Example: `/s 2` for second facility"
+                self.send_whatsapp_message(
+                    to_number=self.from_number,
+                    message=response
+                )
                 return response
 
             # Get requested facility
@@ -614,7 +797,10 @@ class WhatsAppMessageHandler:
 
             response += "\n📝 *To view another facility:*\n"
             response += "Type 'schedule' to see your facilities"
-
+            self.send_whatsapp_message(
+                to_number=self.from_number,
+                message=response
+            )
             return response
 
         except Exception as e:
@@ -739,6 +925,10 @@ class WhatsAppMessageHandler:
 
             # If no facilities found
             if not user_facilities.exists():
+                self.send_whatsapp_message(
+                    to_number=self.from_number,
+                    message="You are not associated with any facilities."
+                )
                 return "You are not associated with any facilities."
 
             # If no facility_id specified, show list of user's facilities
@@ -750,12 +940,20 @@ class WhatsAppMessageHandler:
                 response += "\n📝 *To view resources for a specific facility:*\n"
                 response += "Type `/r <facility_number>`\n"
                 response += "Example: `/r 2` for second facility"
+                self.send_whatsapp_message(
+                    to_number=self.from_number,
+                    message=response
+                )
                 return response
 
             # Get requested facility
             try:
                 facility = user_facilities[int(facility_id)-1]
             except (IndexError, ValueError):
+                self.send_whatsapp_message(
+                    to_number=self.from_number,
+                    message="Invalid facility number. Please try again."
+                )
                 return "Invalid facility number. Please try again."
 
             # Get facility resources
@@ -821,6 +1019,10 @@ class WhatsAppMessageHandler:
                     f"- Deleted requests: {deleted_requests_count}\n"
                     f"- Incoming requests (visible/total): {incoming_requests_count_visible}/{incoming_requests_count_all}\n"
                     f"- Outgoing requests (visible/total): {outgoing_requests_count_visible}/{outgoing_requests_count_all}\n"
+                )
+                self.send_whatsapp_message(
+                    to_number=self.from_number,
+                    message=f"No active resource requests found for {facility.name}. {debug_info}"
                 )
                 return f"No active resource requests found for {facility.name}. {debug_info}"
 
@@ -899,7 +1101,10 @@ class WhatsAppMessageHandler:
 
             response += "📝 *To view another facility:*\n"
             response += "Type 'resource' to see your facilities"
-
+            self.send_whatsapp_message(
+                to_number=self.from_number,
+                message=response
+            )
             return response
         except Exception as e:
             logger.error(f"Error getting resource status: {str(e)}", exc_info=True)
@@ -944,10 +1149,20 @@ class WhatsAppMessageHandler:
             return f"Sorry, I couldn't retrieve the inventory data. Error: {str(e)}"
     def send_whatsapp_message(self,to_number:str, message: str) -> dict:
         """Send a text message to a WhatsApp number"""
+        # response = self.process_message(message)
+        # Remove + and ensure 91 prefix
+        formatted_number = to_number.replace('+', '')
+        if not formatted_number.startswith('91'):
+            formatted_number = '91' + formatted_number
+        # logger.info(f"resy: {response} and to_number: {formatted_number}")
+        self.whatsapp_client.send_message(formatted_number, message)
+
+    def send_whatsapp_text(self,to_number:str, message: str) -> dict:
+        """Send a text message to a WhatsApp number"""
         response = self.process_message(message)
         # Remove + and ensure 91 prefix
         formatted_number = to_number.replace('+', '')
         if not formatted_number.startswith('91'):
             formatted_number = '91' + formatted_number
-        logger.info(f"resy: {response} and to_number: {formatted_number}")
+        # logger.info(f"resy: {response} and to_number: {formatted_number}")
         self.whatsapp_client.send_message(formatted_number, response)

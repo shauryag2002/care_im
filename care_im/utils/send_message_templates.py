@@ -20,8 +20,62 @@ class WhatsAppSender:
         self.phone_number_id = settings.WHATSAPP_PHONE_NUMBER_ID
         self.api_url = f"https://graph.facebook.com/v22.0/{settings.WHATSAPP_PHONE_NUMBER_ID}/messages"
 
+    # def send_template(self, to_number: str, template_name: str, language: str = "en",
+    #                   params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    #     """
+    #     Send a WhatsApp template message
+
+    #     Args:
+    #         to_number: Recipient's phone number with country code (e.g. "911234567890")
+    #         template_name: Name of the template to send
+    #         language: Language code for the template
+    #         params: Parameters to pass to the template (if any)
+
+    #     Returns:
+    #         API response as dictionary
+    #     """
+    #     logger.info(f"Sending WhatsApp template to {to_number} - {template_name}")
+    #     headers = {
+    #         "Authorization": f"Bearer {self.access_token}",
+    #         "Content-Type": "application/json"
+    #     }
+
+    #     # Basic payload for template message
+    #     payload = {
+    #         "messaging_product": "whatsapp",
+    #         "to": to_number,
+    #         "type": "template",
+    #         "template": {
+    #             "name": template_name,
+    #             "language": {
+    #                 "code": language
+    #             }
+    #         }
+    #     }
+
+    #     # Add components/parameters if provided
+    #     if params:
+    #         components = []
+    #         for param_type, values in params.items():
+    #             component = {"type": param_type, "parameters": []}
+    #             for value in values:
+    #                 component["parameters"].append(value)
+    #             components.append(component)
+
+    #         if components:
+    #             payload["template"]["components"] = components
+
+    #     try:
+    #         logger.info(f"Sendy WhatsApp template: {payload}")
+    #         response = requests.post(self.api_url, headers=headers, json=payload)
+    #         response.raise_for_status()
+    #         return response.json()
+    #     except requests.exceptions.RequestException as e:
+    #         logger.error(f"Failed to send WhatsApp template: {e}")
+    #         return {"error": str(e)}
+
     def send_template(self, to_number: str, template_name: str, language: str = "en",
-                      params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+                  params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         Send a WhatsApp template message
 
@@ -56,12 +110,27 @@ class WhatsAppSender:
         # Add components/parameters if provided
         if params:
             components = []
-            for param_type, values in params.items():
-                component = {"type": param_type, "parameters": []}
-                for value in values:
-                    component["parameters"].append(value)
-                components.append(component)
-
+            for component_type, values in params.items():
+                if component_type.lower() == "button":
+                    # Create a separate component for each button.
+                    for button in values:
+                        # Extract optional keys for button, defaulting if not provided.
+                        sub_type = button.pop("sub_type", "url")
+                        index = button.pop("index", 0)
+                        component = {
+                            "type": "button",
+                            "sub_type": sub_type,
+                            "index": index,
+                            "parameters": [button]
+                        }
+                        components.append(component)
+                else:
+                    # For other types like "body", group all provided parameters in one component.
+                    component = {
+                        "type": component_type,
+                        "parameters": values
+                    }
+                    components.append(component)
             if components:
                 payload["template"]["components"] = components
 
@@ -73,6 +142,7 @@ class WhatsAppSender:
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to send WhatsApp template: {e}")
             return {"error": str(e)}
+
 
     def send_text_message(self, to_number: str, text: str) -> Dict[str, Any]:
         """
