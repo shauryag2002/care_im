@@ -1,26 +1,26 @@
+"""Signal handlers for sending WhatsApp messages."""
+
+import logging
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from care.facility.models.patient import PatientMobileOTP
-from care.emr.models import QuestionnaireResponse
-from care.emr.models import (EncounterOrganization, Patient,TokenBooking)
-from care_im.care_im.utils.message_handler import WhatsAppMessageHandler
-from care_im.care_im.utils.whatsapp_client import WhatsAppClient
-from care_im.care_im.utils.send_message_templates import WhatsAppSender
 from django.core.cache import cache
 from celery import shared_task
 
-import logging
+from care.facility.models.patient import PatientMobileOTP
+from care.emr.models import QuestionnaireResponse, EncounterOrganization, Patient, TokenBooking
+
+from care_im.messaging.template_sender import WhatsAppSender
+from care_im.messaging.handler import WhatsAppMessageHandler
+
 logger = logging.getLogger(__name__)
 
-# Separate Celery tasks
+
+# Separate Celery tasks for each message type
 @shared_task
-def send_otp_message_task(phone_number, otp):
+def send_otp_message_task(phone_number: str, otp: str):
+    """Send OTP message via WhatsApp."""
     try:
-        # whatsapp_client = WhatsAppClient()
-        # whatsapp_client.send_message(
-        #     phone_number,
-        #     f"Kerala Care Login, OTP {otp}. Please do not share this Confidential Login Token with anyone else",
-        # )Scheduling OTP message
+        logger.info(f"Sending OTP message to {phone_number}")
         WhatsAppSender().send_template(
             to_number=phone_number,
             template_name="care_otp",
@@ -36,60 +36,42 @@ def send_otp_message_task(phone_number, otp):
     except Exception as e:
         logger.error(f"Failed to send OTP: {str(e)}")
 
+
 @shared_task
-def send_questionnaire_response_task(phone_number):
+def send_questionnaire_response_task(phone_number: str):
+    """Send questionnaire response (medications) via WhatsApp."""
     lock_id = f"questionnaire_response:{phone_number}"
 
-    # Set lock with expiry of 10 seconds
+    # Set lock with expiry of 10 seconds to prevent duplicate messages
     if cache.add(lock_id, "locked", timeout=10):
         try:
+            logger.info(f"Sending questionnaire response to {phone_number}")
             whatsapp_client = WhatsAppMessageHandler(phone_number)
-            whatsapp_client.process_message(
-                message_text="medications",
-            )
-            # medications_response=whatsapp_client._get_current_medications()
-            # whatsapp_sender = WhatsAppSender()
-            # whatsapp_sender.send_template(
-            #     phone_number,
-            #     "care_medications",
-            #     params={
-            #         "body": [
-            #             {"type": "text", "text": medications_response},
-            #         ]
-            #     }
-            # )
+            whatsapp_client.process_message(message_text="medications")
         except Exception as e:
             logger.error(f"Failed to send questionnaire response: {str(e)}")
         finally:
             cache.delete(lock_id)  # Remove lock after execution
     else:
-        logger.info(f"Skipping duplicate request for {phone_number}")
+        logger.info(f"Skipping duplicate questionnaire response request for {phone_number}")
 
 
 @shared_task
-def send_procedures_task(phone_number):
+def send_procedures_task(phone_number: str):
+    """Send procedures information via WhatsApp."""
     try:
+        logger.info(f"Sending procedures information to {phone_number}")
         whatsapp_client = WhatsAppMessageHandler(phone_number)
-        whatsapp_client.process_message(
-            message_text="procedures",
-        )
-        # procedure_response=whatsapp_client._get_procedures()
-        # whatsapp_sender = WhatsAppSender()
-        # whatsapp_sender.send_template(
-        #     phone_number,
-        #     "care_procedures",
-        #     params={
-        #         "body": [
-        #             {"type": "text", "text": procedure_response},
-        #         ]
-        #     }
-        # )
+        whatsapp_client.process_message(message_text="procedures")
     except Exception as e:
         logger.error(f"Failed to send procedures message: {str(e)}")
 
+
 @shared_task
-def send_patient_registration_task(phone_number, name):
+def send_patient_registration_task(phone_number: str, name: str):
+    """Send patient registration confirmation via WhatsApp."""
     try:
+        logger.info(f"Sending registration confirmation to {phone_number}")
         whatsapp_sender = WhatsAppSender()
         whatsapp_sender.send_template(
             phone_number,
@@ -105,54 +87,54 @@ def send_patient_registration_task(phone_number, name):
     except Exception as e:
         logger.error(f"Failed to send patient registration message: {str(e)}")
 
+
 @shared_task
-def send_token_booking_task(phone_number):
+def send_token_booking_task(phone_number: str):
+    """Send token booking information via WhatsApp."""
     try:
+        logger.info(f"Sending token booking information to {phone_number}")
         whatsapp_client = WhatsAppMessageHandler(phone_number)
-        whatsapp_client.process_message(
-            message_text="token",
-        )
-        # token_response=whatsapp_client._get_token_booking()
-        # whatsapp_sender = WhatsAppSender()
-        # whatsapp_sender.send_template(
-        #     phone_number,
-        #     "care_token",
-        #     params={
-        #         "body": [
-        #             {"type": "text", "text": token_response},
-        #         ]
-        #     }
-        # )
+        whatsapp_client.process_message(message_text="token")
     except Exception as e:
         logger.error(f"Failed to send token booking message: {str(e)}")
 
-# Signal handlers with dispatch_uid
+
+# Signal handlers with dispatch_uid to prevent duplicate registration
 @receiver(post_save, sender=PatientMobileOTP, dispatch_uid="patient_otp_signal")
 def handle_otp_message(sender, instance, created, **_):
+    """Handle OTP generation and send OTP message."""
     if created:
-        logger.info(f"Scheduling OTP message for {instance.phone_number}")
+        logger.info(f"OTP created for {instance.phone_number}, scheduling message")
         send_otp_message_task.delay(instance.phone_number, instance.otp)
+
 
 @receiver(post_save, sender=QuestionnaireResponse, dispatch_uid="questionnaire_response_signal")
 def handle_questionnaire_response(sender, instance, created, **_):
-    if created :
-        logger.info(f"Scheduling questionnaire response for {instance.patient.phone_number}")
+    """Handle questionnaire response creation and send medication information."""
+    if created:
+        logger.info(f"Questionnaire response created for patient {instance.patient.id}")
         send_questionnaire_response_task.delay(instance.patient.phone_number)
+
 
 @receiver(post_save, sender=Patient, dispatch_uid="patient_registration_signal")
 def handle_patient_registration(sender, instance, created, **_):
-    if created:
-        logger.info(f"Scheduling patient registration message for {instance.phone_number}")
-        send_patient_registration_task.delay(instance.phone_number,instance.name)
+    """Handle patient registration and send welcome message."""
+    if created and instance.phone_number:
+        logger.info(f"Patient {instance.id} registered with phone {instance.phone_number}")
+        send_patient_registration_task.delay(instance.phone_number, instance.name)
+
 
 @receiver(post_save, sender=EncounterOrganization, dispatch_uid="encounter_organization_signal")
 def handle_encounter_organization(sender, instance, created, **_):
-    if created and hasattr(instance.encounter, 'patient'):
-        logger.info(f"Scheduling encounter organization message for {instance.encounter.patient.phone_number}")
+    """Handle encounter organization creation and send procedures information."""
+    if created and hasattr(instance.encounter, 'patient') and instance.encounter.patient.phone_number:
+        logger.info(f"Encounter organization created for patient {instance.encounter.patient.id}")
         send_procedures_task.delay(instance.encounter.patient.phone_number)
+
 
 @receiver(post_save, sender=TokenBooking, dispatch_uid="token_booking_signal")
 def handle_token_booking(sender, instance: TokenBooking, created: bool, **_):
-    if created:
-        logger.info(f"Scheduling token booking message for {instance.patient.phone_number}")
+    """Handle token booking creation and send booking confirmation."""
+    if created and instance.patient.phone_number:
+        logger.info(f"Token booking created for patient {instance.patient.id}")
         send_token_booking_task.delay(instance.patient.phone_number)
