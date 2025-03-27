@@ -56,10 +56,6 @@ class WhatsAppMessageHandler:
             if not self.patient:
                 self._find_staff_user(normalized_number)
                 
-            # If we found a patient but no staff user, create a basic user for the patient
-            if self.patient and not self.user:
-                self._create_basic_user_for_patient(normalized_number)
-                
             logger.info(f"Identified user: {self.user}, patient: {self.patient}")
         except Exception as e:
             logger.error(f"Error in user identification: {str(e)}")
@@ -136,32 +132,6 @@ class WhatsAppMessageHandler:
         except Exception as e:
             logger.error(f"Error finding staff user: {str(e)}")
             
-    def _create_basic_user_for_patient(self, normalized_number: str) -> None:
-        """
-        Create a basic user for a patient if one doesn't exist.
-        
-        Args:
-            normalized_number: Normalized phone number
-        """
-        if not self.patient:
-            return
-            
-        try:
-            # Check if user already exists
-            self.user = User.objects.filter(phone_number=normalized_number).first()
-            
-            if not self.user:
-                logger.info(f"Creating new user for patient: {self.patient}")
-                self.user = User.objects.create(
-                    phone_number=normalized_number,
-                    username=f"patient_{self.patient.external_id}",
-                    first_name=self.patient.name,
-                    is_active=True,
-                    verified=True
-                )
-        except Exception as e:
-            logger.error(f"Error creating user for patient: {str(e)}")
-
     def process_message(self, message_text: str) -> str:
         """
         Process incoming message and return appropriate response.
